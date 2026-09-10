@@ -1,0 +1,54 @@
+services:
+  openclaw:
+    image: ghcr.io/jbkunama1/haI.openclawuibackend:latest
+    container_name: openclaw
+    restart: unless-stopped
+    networks:
+      - highfishNetwork
+    volumes:
+      - openclaw-data:/data/.openclaw
+      - openclaw-workspace:/data/workspace
+    environment:
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      TZ: ${TZ:-Europe/Berlin}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    networks:
+      - highfishNetwork
+    ports:
+      - "${WEBUI_PORT:-8666}:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      WEBUI_AUTH: ${WEBUI_AUTH:-true}
+      WEBUI_NAME: ${WEBUI_NAME:-OpenClaw Lab}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TZ: ${TZ:-Europe/Berlin}
+    depends_on:
+      - openclaw
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3
+
+networks:
+  highfishNetwork:
+    external: true
+
+volumes:
+  openclaw-data:
+    name: openclaw-data
+  openclaw-workspace:
+    name: openclaw-workspace
+  open-webui-data:
+    name: open-webui-data
