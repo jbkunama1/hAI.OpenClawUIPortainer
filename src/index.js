@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 require('dotenv').config();
+const { McpManager } = require('./mcp');
 
 const app = express();
 
@@ -10,14 +11,16 @@ const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
 
-let mcpServers = [];
+let mcpConfig = [];
 
 try {
-  mcpServers = JSON.parse(process.env.MCP_SERVERS_JSON || '[]');
+  mcpConfig = JSON.parse(process.env.MCP_SERVERS_JSON || '[]');
 } catch (error) {
   console.error('Invalid MCP_SERVERS_JSON:', error.message);
-  mcpServers = [];
+  mcpConfig = [];
 }
+
+const mcp = new McpManager(mcpConfig);
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -42,8 +45,9 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'openclaw-backend',
-    version: '1.1.0',
-    mcpServers: mcpServers.length,
+    version: '1.2.0',
+    mcpServers: mcp.servers.length,
+    mcpConnected: mcp.connectedCount(),
     timestamp: new Date().toISOString()
   });
 });
@@ -126,18 +130,45 @@ app.post('/v1/chat/completions', requireGatewayToken, async (req, res) => {
 });
 
 app.get('/api/mcp/servers', requireGatewayToken, (req, res) => {
-  res.json({
-    servers: mcpServers.map(server => ({
-      name: server.name,
-      transport: server.transport || 'http',
-      url: server.url || null,
-      enabled: server.enabled !== false
-    }))
-  });
+  res.json({ servers: mcp.status() });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.get('/api/mcp/tools', requireGatewayToken, (req, res) => {
+  const tools = mcp.getOpenAITools();
+  res.json({ count: tools.length, tools });
+});
+
+app.post('/api/mcp/call', requireGatewayToken, async (req, res) => {
+  const { name, arguments: args } = req.body || {};
+
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({
+      error: { message: 'Field "name" is required', type: 'invalid_request_error' }
+    });
+  }
+
+  try {
+    const result = await mcp.callTool(name, args || {});
+    return res.json({ name, isError: result.isError, text: result.text });
+  } catch (error) {
+    return res.status(502).json({
+      error: { message: error.message, type: 'mcp_error' }
+    });
+  }
+});
+
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`OpenClaw backend listening on port ${PORT}`);
   console.log(`LLM endpoint: ${LLM_BASE_URL || 'not configured'}`);
-  console.log(`MCP servers configured: ${mcpServers.length}`);
+  console.log(`MCP servers configured: ${mcp.servers.length}`);
+  mcp.init().catch(error => console.error('MCP init failed:', error.message));
 });
+
+async function shutdown() {
+  await mcp.close();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
