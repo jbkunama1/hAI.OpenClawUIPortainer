@@ -3,6 +3,7 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 require('dotenv').config();
 const { McpManager } = require('./mcp');
+const { createAgent } = require('./agent');
 
 const app = express();
 
@@ -21,6 +22,16 @@ try {
 }
 
 const mcp = new McpManager(mcpConfig);
+
+const agent = createAgent({
+  mcp,
+  baseUrl: LLM_BASE_URL,
+  apiKey: LLM_API_KEY,
+  enabled: process.env.AGENT_ENABLED !== 'false',
+  maxSteps: Math.max(1, parseInt(process.env.AGENT_MAX_STEPS || '8', 10) || 8),
+  allow: process.env.MCP_TOOL_ALLOW || '',
+  showCalls: process.env.SHOW_TOOL_CALLS !== 'false'
+});
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -41,13 +52,66 @@ function requireGatewayToken(req, res, next) {
   next();
 }
 
+function sseChunk(res, id, model, delta, finishReason) {
+  const chunk = {
+    id,
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model,
+    choices: [{ index: 0, delta, finish_reason: finishReason || null }]
+  };
+  res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+}
+
+async function handleAgentStream(req, res) {
+  const id = `chatcmpl-${Date.now().toString(36)}`;
+  const model = req.body.model;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  sseChunk(res, id, model, { role: 'assistant', content: '' });
+  const keepAlive = setInterval(() => res.write(': keep-alive\n\n'), 15000);
+
+  try {
+    const data = await agent.run(req.body, text => sseChunk(res, id, model, { content: text }));
+    const message = (data.choices && data.choices[0] && data.choices[0].message) || {};
+    const calls = message.tool_calls || [];
+
+    if (message.content) {
+      sseChunk(res, id, model, { content: message.content });
+    }
+    if (calls.length > 0) {
+      sseChunk(res, id, model, {
+        tool_calls: calls.map((call, index) => ({
+          index,
+          id: call.id,
+          type: 'function',
+          function: { name: call.function.name, arguments: call.function.arguments }
+        }))
+      });
+    }
+    sseChunk(res, id, model, {}, calls.length > 0 ? 'tool_calls' : 'stop');
+  } catch (error) {
+    sseChunk(res, id, model, { content: `\n\nError: ${error.message}` });
+    sseChunk(res, id, model, {}, 'stop');
+  } finally {
+    clearInterval(keepAlive);
+    res.write('data: [DONE]\n\n');
+    res.end();
+  }
+}
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'openclaw-backend',
-    version: '1.2.0',
+    version: '1.3.0',
     mcpServers: mcp.servers.length,
     mcpConnected: mcp.connectedCount(),
+    agentTools: agent.tools().length,
     timestamp: new Date().toISOString()
   });
 });
@@ -90,12 +154,25 @@ app.post('/v1/chat/completions', requireGatewayToken, async (req, res) => {
       });
     }
 
+    const useAgent = req.headers['x-agent'] !== 'off' && agent.tools().length > 0;
+
+    if (useAgent && req.body.stream) {
+      return await handleAgentStream(req, res);
+    }
+
+    if (useAgent) {
+      const data = await agent.run(req.body);
+      return res.json(data);
+    }
+
     const payload = {
       model: req.body.model,
       messages: req.body.messages,
       temperature: req.body.temperature,
       top_p: req.body.top_p,
       max_tokens: req.body.max_tokens,
+      tools: req.body.tools,
+      tool_choice: req.body.tool_choice,
       stream: Boolean(req.body.stream)
     };
 
@@ -120,7 +197,8 @@ app.post('/v1/chat/completions', requireGatewayToken, async (req, res) => {
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (error) {
-    return res.status(502).json({
+    if (res.headersSent) return;
+    return res.status(error.status || 502).json({
       error: {
         message: error.message,
         type: 'upstream_error'

@@ -14,6 +14,11 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL}
       LLM_API_KEY: ${LLM_API_KEY}
       MCP_SERVERS_JSON: ${MCP_SERVERS_JSON:-[]}
+      HAI_MCP_TOKEN: ${HAI_MCP_TOKEN:-}
+      AGENT_ENABLED: ${AGENT_ENABLED:-true}
+      AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-8}
+      MCP_TOOL_ALLOW: ${MCP_TOOL_ALLOW:-}
+      SHOW_TOOL_CALLS: ${SHOW_TOOL_CALLS:-true}
       TZ: ${TZ:-Europe/Berlin}
     logging:
       driver: json-file
