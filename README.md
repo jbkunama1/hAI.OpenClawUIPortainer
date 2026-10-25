@@ -1,85 +1,103 @@
 # hAI.OpenClawUIPortainer
 
-Portainer-Stack für eine OpenClaw-Backend-Runtime mit Open WebUI und BYOK-Unterstützung für OpenAI-kompatible LLM-Anbieter.
+Portainer-Stack für Open WebUI mit einem OpenAI-kompatiblen Agent-Gateway.
 
-## Voraussetzungen
+Das Projekt bietet:
 
-- Docker/Portainer auf x86_64
-- Externes Docker-Netzwerk `highfishNetwork`
-- Ein OpenAI-kompatibler API-Endpunkt und API-Key
-- Für die WebUI mindestens etwa 2 GB freier Arbeitsspeicher; lokale LLMs benötigen zusätzliche Ressourcen
-
-Netzwerk einmalig anlegen, falls es nicht existiert:
-
-```bash
-docker network create highfishNetwork
-```
+- Open WebUI auf Port 8666
+- BYOK für OpenAI-kompatible LLM-Anbieter
+- Gateway-API für Open WebUI
+- Optionale MCP-Server-Konfiguration
+- Persistente Docker-Volumes
+- GHCR-Image-Build über GitHub Actions
 
 ## Portainer-Installation
 
-1. Portainer öffnen und **Stacks → Add stack** wählen.
-2. Als Namen `openclaw` verwenden.
-3. **Git Repository** wählen.
-4. Repository-URL eintragen:
-   `https://github.com/jbkunama1/hAI.OpenClawUIPortainer.git`
-5. Branch `main` verwenden und Compose-Datei `docker-compose.yml` auswählen.
-6. Unter **Environment variables** die Werte aus `.env.example` setzen.
-7. Stack deployen.
+1. Portainer öffnen.
+2. **Stacks → Add stack** wählen.
+3. Stack-Name: `openclaw`
+4. **Repository** auswählen.
+5. Repository-URL:
 
-Die WebUI ist anschließend unter `http://SERVER-IP:8666` erreichbar.
+   ```text
+   https://github.com/jbkunama1/hAI.OpenClawUIPortainer.git
+   ```
 
-## Umgebungsvariablen
+6. Branch: `main`
+7. Compose-Datei: `docker-compose.yml`
+8. Environment-Variablen setzen.
+9. Stack deployen.
 
-| Variable | Pflicht | Beispiel/Bedeutung |
+Die WebUI ist danach erreichbar unter:
+
+```text
+http://SERVER-IP:8666
+```
+
+## Environment-Variablen
+
+| Variable | Pflicht | Beispiel |
 |---|---:|---|
-| `OPENCLAW_GATEWAY_TOKEN` | Ja | Langes zufälliges Gateway-Token |
-| `OPENAI_API_BASE_URL` | Ja | OpenAI-kompatible Base-URL, inklusive `/v1` |
-| `OPENAI_API_KEY` | Ja | API-Key des gewählten Providers |
-| `WEBUI_PORT` | Nein | Externer Port, Standard `8666` |
-| `WEBUI_AUTH` | Nein | Login aktivieren, Standard `true` |
-| `WEBUI_NAME` | Nein | Anzeigename der WebUI |
-| `TZ` | Nein | Standard `Europe/Berlin` |
+| `GATEWAY_TOKEN` | Ja | Langes zufälliges Token |
+| `LLM_BASE_URL` | Ja | `https://api.openai.com/v1` |
+| `LLM_API_KEY` | Ja | API-Key des Providers |
+| `WEBUI_PORT` | Nein | `8666` |
+| `WEBUI_AUTH` | Nein | `true` |
+| `WEBUI_NAME` | Nein | `OpenClaw Lab` |
+| `TZ` | Nein | `Europe/Berlin` |
+| `MCP_SERVERS_JSON` | Nein | JSON-Array mit MCP-Servern |
 
 ## BYOK-Beispiele
 
 ### OpenAI
 
 ```text
-OPENAI_API_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=sk-...
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=sk-...
 ```
 
 ### OpenRouter
 
 ```text
-OPENAI_API_BASE_URL=https://openrouter.ai/api/v1
-OPENAI_API_KEY=sk-or-v1-...
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=sk-or-v1-...
 ```
 
-### Ollama im separaten Container
+### Ollama
 
 ```text
-OPENAI_API_BASE_URL=http://ollama:11434/v1
-OPENAI_API_KEY=ollama
+LLM_BASE_URL=http://ollama:11434/v1
+LLM_API_KEY=ollama
 ```
 
-Der Ollama-Container muss im selben Docker-Netzwerk erreichbar sein. Ein Modell wird anschließend in Open WebUI ausgewählt.
+## MCP-Konfiguration
 
-### Andere Anbieter
+MCP-Server werden als JSON-Array übergeben:
 
-Base-URL und Modellnamen bitte nach der Dokumentation des jeweiligen Anbieters eintragen. Die URL muss den OpenAI-kompatiblen API-Pfad bereitstellen.
+```json
+[
+  {
+    "name": "fhem",
+    "transport": "http",
+    "url": "http://fhem-mcp:3001",
+    "enabled": true
+  }
+]
+```
+
+Als Environment-Variable:
+
+```text
+MCP_SERVERS_JSON=[{"name":"fhem","transport":"http","url":"http://fhem-mcp:3001","enabled":true}]
+```
 
 ## Sicherheit
 
-- Niemals echte Keys committen; nur Portainer-Environment-Variablen oder Secrets verwenden.
-- `WEBUI_AUTH=true` beibehalten, besonders bei Zugriff über Cloudflare oder Internet.
-- Das Gateway nicht direkt per Port nach außen veröffentlichen.
-- Für externe Zugriffe HTTPS, Cloudflare Access oder eine vergleichbare Zugriffskontrolle verwenden.
-- Das Standard-Token ersetzen und nicht im README dokumentieren.
-
-## Aktualisieren
-
-In Portainer den Stack öffnen und **Pull and redeploy** ausführen. Die benannten Volumes bleiben dabei erhalten.
+- Niemals echte API-Keys ins Repository committen.
+- `GATEWAY_TOKEN` immer ersetzen.
+- `WEBUI_AUTH=true` beibehalten.
+- Backend-Port 3000 nicht nach außen freigeben.
+- Für Internetzugriff HTTPS, Cloudflare Access oder eine vergleichbare Absicherung verwenden.
 
 ## Troubleshooting
 
@@ -89,10 +107,6 @@ docker logs openclaw
 docker logs open-webui
 ```
 
-- Bei `502` zuerst prüfen, ob der Backend-Container läuft.
-- Bei API-Fehlern Base-URL, Key und Modellnamen prüfen.
-- Bei einem Netzwerkfehler sicherstellen, dass `highfishNetwork` bereits existiert.
-
-## Lizenz
-
-MIT
+Bei `502`: Backend-Container und `LLM_BASE_URL` prüfen.  
+Bei `401`: `GATEWAY_TOKEN` prüfen.  
+Bei Image-Pull-Fehlern: GHCR-Workflow und Paket-Sichtbarkeit prüfen.
