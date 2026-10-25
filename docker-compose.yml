@@ -1,6 +1,6 @@
 services:
   openclaw:
-    image: ghcr.io/jbkunama1/haI.openclawuibackend:latest
+    image: ghcr.io/jbkunama1/hai.openclawuiportainer:latest
     container_name: openclaw
     restart: unless-stopped
     networks:
@@ -9,7 +9,11 @@ services:
       - openclaw-data:/data/.openclaw
       - openclaw-workspace:/data/workspace
     environment:
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      PORT: 3000
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      MCP_SERVERS_JSON: ${MCP_SERVERS_JSON:-[]}
       TZ: ${TZ:-Europe/Berlin}
     logging:
       driver: json-file
@@ -30,8 +34,8 @@ services:
     environment:
       WEBUI_AUTH: ${WEBUI_AUTH:-true}
       WEBUI_NAME: ${WEBUI_NAME:-OpenClaw Lab}
-      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_BASE_URL: http://openclaw:3000/v1
+      OPENAI_API_KEY: ${GATEWAY_TOKEN}
       TZ: ${TZ:-Europe/Berlin}
     depends_on:
       - openclaw
