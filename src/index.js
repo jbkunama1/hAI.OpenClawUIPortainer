@@ -5,6 +5,7 @@ require('dotenv').config();
 const { McpManager } = require('./mcp');
 const { createAgent } = require('./agent');
 const { TelegramBot } = require('./telegram');
+const { announceStart } = require('./startup');
 
 const app = express();
 
@@ -12,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 
 let mcpConfig = [];
 
@@ -287,8 +288,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`OpenClaw backend listening on port ${PORT}`);
   console.log(`LLM endpoint: ${LLM_BASE_URL || 'not configured'}`);
   console.log(`MCP servers configured: ${mcp.servers.length}`);
-  mcp.init().catch(error => console.error('MCP init failed:', error.message));
-  telegram.start().catch(error => console.error('Telegram init failed:', error.message));
+
+  const mcpReady = mcp.init().catch(error => console.error('MCP init failed:', error.message));
+  const telegramReady = telegram.start().catch(error => console.error('Telegram init failed:', error.message));
+
+  Promise.all([mcpReady, telegramReady])
+    .then(() => announceStart({ bot: telegram, agent, mcp, version: VERSION, resolveModel: resolveTelegramModel }))
+    .catch(error => console.error('Startmeldung fehlgeschlagen:', error.message));
 });
 
 async function shutdown() {
