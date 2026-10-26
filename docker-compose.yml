@@ -19,6 +19,9 @@ services:
       AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-8}
       MCP_TOOL_ALLOW: ${MCP_TOOL_ALLOW:-}
       SHOW_TOOL_CALLS: ${SHOW_TOOL_CALLS:-true}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOWED_USERS: ${TELEGRAM_ALLOWED_USERS:-}
+      TELEGRAM_DEBUG: ${TELEGRAM_DEBUG:-false}
       TZ: ${TZ:-Europe/Berlin}
     logging:
       driver: json-file

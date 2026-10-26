@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 require('dotenv').config();
 const { McpManager } = require('./mcp');
 const { createAgent } = require('./agent');
+const { TelegramBot } = require('./telegram');
 
 const app = express();
 
@@ -31,6 +32,14 @@ const agent = createAgent({
   maxSteps: Math.max(1, parseInt(process.env.AGENT_MAX_STEPS || '8', 10) || 8),
   allow: process.env.MCP_TOOL_ALLOW || '',
   showCalls: process.env.SHOW_TOOL_CALLS !== 'false'
+});
+
+const telegram = new TelegramBot({
+  token: process.env.TELEGRAM_BOT_TOKEN || '',
+  allowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || '').split(',').map(s => s.trim()).filter(Boolean),
+  gatewayToken: GATEWAY_TOKEN,
+  port: PORT,
+  debug: process.env.TELEGRAM_DEBUG === 'true'
 });
 
 app.use(cors());
@@ -108,10 +117,11 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'openclaw-backend',
-    version: '1.3.0',
+    version: '1.4.0',
     mcpServers: mcp.servers.length,
     mcpConnected: mcp.connectedCount(),
     agentTools: agent.tools().length,
+    telegramBot: Boolean(process.env.TELEGRAM_BOT_TOKEN),
     timestamp: new Date().toISOString()
   });
 });
@@ -235,14 +245,34 @@ app.post('/api/mcp/call', requireGatewayToken, async (req, res) => {
   }
 });
 
+app.post('/api/telegram/notify', requireGatewayToken, async (req, res) => {
+  const { chatId, text, buttons } = req.body || {};
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    return res.status(503).json({ error: { message: 'Telegram bot not configured', type: 'not_configured' } });
+  }
+  if (!text) {
+    return res.status(400).json({ error: { message: 'text is required', type: 'invalid_request_error' } });
+  }
+  try {
+    const targetChat = chatId || (process.env.TELEGRAM_ALLOWED_USERS || '').split(',')[0].trim();
+    if (!targetChat) throw new Error('No chatId provided and no default user set');
+    const result = await telegram.send(targetChat, text, buttons);
+    return res.json({ ok: true, result });
+  } catch (e) {
+    return res.status(502).json({ error: { message: e.message, type: 'telegram_error' } });
+  }
+});
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`OpenClaw backend listening on port ${PORT}`);
   console.log(`LLM endpoint: ${LLM_BASE_URL || 'not configured'}`);
   console.log(`MCP servers configured: ${mcp.servers.length}`);
   mcp.init().catch(error => console.error('MCP init failed:', error.message));
+  telegram.start().catch(error => console.error('Telegram init failed:', error.message));
 });
 
 async function shutdown() {
+  telegram.stop();
   await mcp.close();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
