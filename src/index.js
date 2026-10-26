@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
+const VERSION = '1.5.0';
 
 let mcpConfig = [];
 
@@ -31,14 +32,36 @@ const agent = createAgent({
   enabled: process.env.AGENT_ENABLED !== 'false',
   maxSteps: Math.max(1, parseInt(process.env.AGENT_MAX_STEPS || '8', 10) || 8),
   allow: process.env.MCP_TOOL_ALLOW || '',
-  showCalls: process.env.SHOW_TOOL_CALLS !== 'false'
+  showCalls: process.env.SHOW_TOOL_CALLS !== 'false',
+  confirm: process.env.MCP_TOOL_CONFIRM || ''
 });
+
+function healthInfo() {
+  return {
+    status: 'ok',
+    service: 'openclaw-backend',
+    version: VERSION,
+    mcpServers: mcp.servers.length,
+    mcpConnected: mcp.connectedCount(),
+    agentTools: agent.tools().length
+  };
+}
+
+async function resolveTelegramModel() {
+  const model = (process.env.TELEGRAM_MODEL || '').trim();
+  if (!model) {
+    throw new Error('TELEGRAM_MODEL ist nicht gesetzt (Modellname deines Anbieters eintragen)');
+  }
+  return model;
+}
 
 const telegram = new TelegramBot({
   token: process.env.TELEGRAM_BOT_TOKEN || '',
   allowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || '').split(',').map(s => s.trim()).filter(Boolean),
-  gatewayToken: GATEWAY_TOKEN,
-  port: PORT,
+  agent,
+  resolveModel: resolveTelegramModel,
+  getHealth: healthInfo,
+  approvalTimeoutS: parseInt(process.env.TELEGRAM_APPROVAL_TIMEOUT_S || '120', 10) || 120,
   debug: process.env.TELEGRAM_DEBUG === 'true'
 });
 
@@ -115,13 +138,8 @@ async function handleAgentStream(req, res) {
 
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok',
-    service: 'openclaw-backend',
-    version: '1.4.0',
-    mcpServers: mcp.servers.length,
-    mcpConnected: mcp.connectedCount(),
-    agentTools: agent.tools().length,
-    telegramBot: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+    ...healthInfo(),
+    telegramBot: telegram.active,
     timestamp: new Date().toISOString()
   });
 });
@@ -247,19 +265,21 @@ app.post('/api/mcp/call', requireGatewayToken, async (req, res) => {
 
 app.post('/api/telegram/notify', requireGatewayToken, async (req, res) => {
   const { chatId, text, buttons } = req.body || {};
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    return res.status(503).json({ error: { message: 'Telegram bot not configured', type: 'not_configured' } });
+
+  if (!telegram.active) {
+    return res.status(503).json({ error: { message: 'Telegram bot not active', type: 'not_configured' } });
   }
-  if (!text) {
+  if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: { message: 'text is required', type: 'invalid_request_error' } });
   }
+
   try {
-    const targetChat = chatId || (process.env.TELEGRAM_ALLOWED_USERS || '').split(',')[0].trim();
-    if (!targetChat) throw new Error('No chatId provided and no default user set');
-    const result = await telegram.send(targetChat, text, buttons);
-    return res.json({ ok: true, result });
-  } catch (e) {
-    return res.status(502).json({ error: { message: e.message, type: 'telegram_error' } });
+    const target = chatId || telegram.defaultChatId();
+    if (!target) throw new Error('chatId fehlt und TELEGRAM_ALLOWED_USERS enthaelt keine numerische ID');
+    const result = await telegram.send(target, text, buttons);
+    return res.json({ ok: true, messageId: result && result.message_id });
+  } catch (error) {
+    return res.status(502).json({ error: { message: error.message, type: 'telegram_error' } });
   }
 });
 

@@ -2,6 +2,32 @@ const fetch = require('node-fetch');
 
 const MAX_TOOL_RESULT_CHARS = 20000;
 
+const DEFAULT_CONFIRM = [
+  '*__fhem_set*', '*__fhem_command', '*__fhem_define', '*__fhem_delete', '*__fhem_attr',
+  '*__ssh_*',
+  '*__portainer_deploy_stack', '*__portainer_undeploy_stack', '*__portainer_pull_image',
+  '*__portainer_execute_sql', '*__portainer_alias_*',
+  '*__push_files', '*__create_*', '*__delete_*', '*__update_*', '*__add_*', '*__merge_pull_request',
+  '*__issue_write', '*__sub_issue_write', '*__pull_request_review_write', '*__fork_repository',
+  '*__assign_copilot_to_issue', '*__request_copilot_review',
+  '*__memory_write_page', '*__memory_delete_page', '*__memory_consolidate', '*__memory_forget_sweep',
+  '*__execute', '*__invoke_operation', '*__submit_or_merge_change_request',
+  '*__perform-editing-operations', '*__commit-editing-transaction'
+].join(',');
+
+function globToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`);
+}
+
+function compile(list) {
+  return String(list || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(globToRegExp);
+}
+
 function parseArgs(raw) {
   if (raw && typeof raw === 'object') return raw;
   try {
@@ -16,15 +42,17 @@ function truncate(text) {
   return `${text.slice(0, MAX_TOOL_RESULT_CHARS)}\n[truncated ${text.length - MAX_TOOL_RESULT_CHARS} chars]`;
 }
 
-function createAgent({ mcp, baseUrl, apiKey, enabled, maxSteps, allow, showCalls }) {
-  const patterns = String(allow || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+function createAgent({ mcp, baseUrl, apiKey, enabled, maxSteps, allow, showCalls, confirm }) {
+  const allowList = compile(allow);
+  const trimmed = String(confirm || '').trim();
+  const confirmList = compile(trimmed.toLowerCase() === 'none' ? '' : trimmed || DEFAULT_CONFIRM);
 
   function isAllowed(name) {
-    if (patterns.length === 0) return true;
-    return patterns.some(p => (p.endsWith('*') ? name.startsWith(p.slice(0, -1)) : name === p));
+    return allowList.length === 0 || allowList.some(r => r.test(name));
+  }
+
+  function needsConfirm(name) {
+    return confirmList.some(r => r.test(name));
   }
 
   function tools() {
@@ -63,7 +91,8 @@ function createAgent({ mcp, baseUrl, apiKey, enabled, maxSteps, allow, showCalls
     }
   }
 
-  async function run(body, onProgress) {
+  async function run(body, onProgress, options = {}) {
+    const { approve, onToolCall } = options;
     const mcpTools = tools();
     const names = new Set(mcpTools.map(t => t.function.name));
     const clientTools = Array.isArray(body.tools) ? body.tools : [];
@@ -81,8 +110,8 @@ function createAgent({ mcp, baseUrl, apiKey, enabled, maxSteps, allow, showCalls
       const data = await llm({
         ...base,
         messages,
-        tools: allTools,
-        tool_choice: step === 0 ? body.tool_choice : undefined
+        tools: allTools.length > 0 ? allTools : undefined,
+        tool_choice: step === 0 && allTools.length > 0 ? body.tool_choice : undefined
       });
       const message = data.choices && data.choices[0] && data.choices[0].message;
       const calls = (message && message.tool_calls) || [];
@@ -93,8 +122,21 @@ function createAgent({ mcp, baseUrl, apiKey, enabled, maxSteps, allow, showCalls
 
       messages.push(message);
       for (const call of calls) {
-        if (showCalls && onProgress) onProgress(`> \u{1F527} \`${call.function.name}\`\n\n`);
-        const content = await execute(call);
+        const name = call.function.name;
+        let content;
+
+        let allowed = true;
+        if (approve && needsConfirm(name)) {
+          allowed = await Promise.resolve(approve(call)).catch(() => false);
+        }
+
+        if (!allowed) {
+          content = 'Error: Der Benutzer hat die Ausführung nicht freigegeben.';
+        } else {
+          if (onToolCall) await Promise.resolve(onToolCall(call)).catch(() => {});
+          if (showCalls && onProgress) onProgress(`> \u{1F527} \`${name}\`\n\n`);
+          content = await execute(call);
+        }
         messages.push({ role: 'tool', tool_call_id: call.id, content });
       }
     }
@@ -102,7 +144,7 @@ function createAgent({ mcp, baseUrl, apiKey, enabled, maxSteps, allow, showCalls
     return llm({ ...base, messages });
   }
 
-  return { tools, run };
+  return { tools, run, needsConfirm };
 }
 
-module.exports = { createAgent };
+module.exports = { createAgent, DEFAULT_CONFIRM };
