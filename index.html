@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hAI.OpenClawUIPortainer – OpenClaw Lab</title>
+  <meta name="description" content="Open WebUI und OpenAI-kompatibles Agent-Gateway mit MCP-Tools und Telegram-Kanal als Portainer-Stack." />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/dark.css" />
+  <style>
+    :root { --neon-cyan: #00e5ff; --neon-pink: #ff2bd6; --neon-orange: #ff7a1a; }
+    body { max-width: 900px; }
+    header { text-align: center; padding: 1.5rem 0 0.5rem; }
+    h1 { background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    h2 { border-bottom: 2px solid transparent; border-image: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink)) 1; padding-bottom: 0.3rem; }
+    .badges img { margin: 2px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 1rem 0; }
+    .card { border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 12px; padding: 0.8rem 1rem; background: rgba(255, 255, 255, 0.03); }
+    .card h3 { margin-top: 0; }
+    .flow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 1rem 0; }
+    .node { border: 2px solid var(--neon-cyan); border-radius: 10px; padding: 0.5rem 0.9rem; font-weight: 600; background: rgba(0, 229, 255, 0.08); }
+    .node.pink { border-color: var(--neon-pink); background: rgba(255, 43, 214, 0.08); }
+    .node.orange { border-color: var(--neon-orange); background: rgba(255, 122, 26, 0.08); }
+    .arrow { color: var(--neon-cyan); font-size: 1.4rem; }
+    .btn { display: inline-block; padding: 0.35rem 0.8rem; border-radius: 8px; font-weight: 600; color: #fff; margin: 2px; }
+    .btn.blue { background: #2b7cff; } .btn.green { background: #1f9d55; } .btn.red { background: #d63a3a; }
+    footer { text-align: center; opacity: 0.8; padding-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>hAI.OpenClawUIPortainer</h1>
+    <p>Open WebUI + OpenAI-kompatibles Agent-Gateway mit MCP-Tools und Telegram-Kanal. Self-hosted als Portainer-Stack.</p>
+    <p class="badges">
+      <img src="https://img.shields.io/badge/status-active-brightgreen?style=for-the-badge" alt="Status" />
+      <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+      <img src="https://img.shields.io/badge/Portainer-Stack-13BEF9?style=for-the-badge&logo=portainer&logoColor=white" alt="Portainer" />
+      <img src="https://img.shields.io/badge/MCP-Tools-8A2BE2?style=for-the-badge" alt="MCP" />
+      <img src="https://img.shields.io/badge/Node.js-20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+      <img src="https://img.shields.io/badge/Telegram-Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram" />
+      <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT" />
+    </p>
+    <p>
+      <a href="https://github.com/jbkunama1/hAI.OpenClawUIPortainer"><strong>GitHub-Repository</strong></a>
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Architektur</h2>
+      <div class="flow">
+        <span class="node">&#128100; Du</span><span class="arrow">&#8594;</span>
+        <span class="node">&#128172; Open WebUI</span><span class="arrow">&#8594;</span>
+        <span class="node pink">&#129438; OpenClaw Gateway</span><span class="arrow">&#8594;</span>
+        <span class="node orange">&#129504; LLM (BYOK)</span>
+      </div>
+      <div class="flow">
+        <span class="node">&#128241; Telegram</span><span class="arrow">&#8594;</span>
+        <span class="node pink">&#129438; OpenClaw Gateway</span><span class="arrow">&#8596;</span>
+        <span class="node orange">&#129520; MCP-Server</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Features</h2>
+      <div class="grid">
+        <div class="card"><h3>&#128172; Open WebUI</h3><p>Chat-Oberfl&auml;che im Browser auf Port <code>8666</code>.</p></div>
+        <div class="card"><h3>&#128273; BYOK</h3><p>OpenAI, OpenRouter, Ollama oder jeder OpenAI-kompatible Anbieter.</p></div>
+        <div class="card"><h3>&#129520; MCP-Client</h3><p>Streamable HTTP mit SSE-Fallback, stdio, Auto-Reconnect.</p></div>
+        <div class="card"><h3>&#129302; Agent-Schleife</h3><p>Tool-Calling mit Allowlist, Ergebnis-Limit und Streaming.</p></div>
+        <div class="card"><h3>&#128241; Telegram</h3><p>Ein- und Ausgabekanal mit bunten Inline-Buttons.</p></div>
+        <div class="card"><h3>&#9989; Freigabe</h3><p>Schreibende Tools laufen erst nach Best&auml;tigung per Button.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Telegram-Buttons</h2>
+      <p>
+        <span class="btn blue">&#128202; Status</span>
+        <span class="btn blue">&#128736; Tools</span>
+        <span class="btn green">&#127381; Neuer Chat</span>
+        <span class="btn green">&#9989; Ausf&uuml;hren</span>
+        <span class="btn red">&#10060; Abbrechen</span>
+      </p>
+    </section>
+
+    <section>
+      <h2>Portainer-Deployment</h2>
+      <ol>
+        <li>Externes Netzwerk anlegen: <code>docker network create highfishNetwork</code></li>
+        <li>In Portainer <strong>Stacks &rarr; Add stack &rarr; Repository</strong> w&auml;hlen.</li>
+        <li>Repository-URL <code>https://github.com/jbkunama1/hAI.OpenClawUIPortainer.git</code>, Branch <code>main</code>.</li>
+        <li>Environment-Variablen setzen: <code>GATEWAY_TOKEN</code>, <code>LLM_BASE_URL</code>, <code>LLM_API_KEY</code>, <code>WEBUI_SECRET_KEY</code>.</li>
+        <li>Stack deployen und <code>http://SERVER-IP:8666</code> &ouml;ffnen.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Sicherheit</h2>
+      <ul>
+        <li>Keine Keys, Tokens oder MCP-URLs im Repository &ndash; nur in der Portainer-Environment.</li>
+        <li><code>TELEGRAM_ALLOWED_USERS</code> setzen, sonst bleibt der Bot im Einrichtungsmodus.</li>
+        <li>Backend-Port <code>3000</code> nicht nach au&szlig;en freigeben, f&uuml;r Internetzugriff HTTPS vorschalten.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Weiterf&uuml;hrende Links</h2>
+      <ul>
+        <li><a href="https://github.com/open-webui/open-webui" target="_blank" rel="noopener noreferrer">Open WebUI</a></li>
+        <li><a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a></li>
+        <li><a href="https://core.telegram.org/bots/api" target="_blank" rel="noopener noreferrer">Telegram Bot API</a></li>
+        <li><a href="https://docs.portainer.io/user/docker/stacks/add" target="_blank" rel="noopener noreferrer">Portainer: Add a new stack</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Daniel Lienhard &ndash; MIT-Lizenz &middot; Built with &#10084;&#65039; in Karlsruhe</p>
+  </footer>
+</body>
+</html>
