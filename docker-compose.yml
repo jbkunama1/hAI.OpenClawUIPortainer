@@ -39,6 +39,8 @@ services:
     environment:
       WEBUI_AUTH: ${WEBUI_AUTH:-true}
       WEBUI_NAME: ${WEBUI_NAME:-OpenClaw Lab}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?WEBUI_SECRET_KEY setzen (openssl rand -hex 32)}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-*}
       OPENAI_API_BASE_URL: http://openclaw:3000/v1
       OPENAI_API_KEY: ${GATEWAY_TOKEN}
       TZ: ${TZ:-Europe/Berlin}

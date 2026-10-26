@@ -26,8 +26,14 @@ Das Projekt bietet:
 
 6. Branch: `main`
 7. Compose-Datei: `docker-compose.yml`
-8. Environment-Variablen setzen.
+8. Environment-Variablen setzen (mindestens `GATEWAY_TOKEN`, `LLM_BASE_URL`, `LLM_API_KEY`, `WEBUI_SECRET_KEY`).
 9. Stack deployen.
+
+Den Schlüssel erzeugst du z.B. mit:
+
+```bash
+openssl rand -hex 32
+```
 
 Die WebUI ist danach erreichbar unter:
 
@@ -42,6 +48,8 @@ http://SERVER-IP:8666
 | `GATEWAY_TOKEN` | Ja | Langes zufälliges Token |
 | `LLM_BASE_URL` | Ja | `https://api.openai.com/v1` |
 | `LLM_API_KEY` | Ja | API-Key des Providers |
+| `WEBUI_SECRET_KEY` | Ja | Ausgabe von `openssl rand -hex 32` |
+| `CORS_ALLOW_ORIGIN` | Nein | `http://SERVER-IP:8666;https://deine-domain` (Standard `*`) |
 | `WEBUI_PORT` | Nein | `8666` |
 | `WEBUI_AUTH` | Nein | `true` |
 | `WEBUI_NAME` | Nein | `OpenClaw Lab` |
@@ -133,8 +141,9 @@ Alle außer `/health` verlangen `Authorization: Bearer <GATEWAY_TOKEN>`.
 ## Sicherheit
 
 - Niemals echte API-Keys, Tokens oder MCP-URLs ins Repository committen.
-- `GATEWAY_TOKEN` immer ersetzen.
+- `GATEWAY_TOKEN` und `WEBUI_SECRET_KEY` immer durch eigene, zufällige Werte ersetzen.
 - `WEBUI_AUTH=true` beibehalten.
+- `CORS_ALLOW_ORIGIN` außerhalb des reinen LANs auf die echten Adressen beschränken.
 - `MCP_TOOL_ALLOW` setzen und nur lesende Tools freigeben, bis alles zuverlässig läuft.
 - Backend-Port 3000 nicht nach außen freigeben.
 - Für Internetzugriff HTTPS, Cloudflare Access oder eine vergleichbare Absicherung verwenden.
@@ -150,4 +159,5 @@ docker logs open-webui
 Bei `502`: Backend-Container und `LLM_BASE_URL` prüfen.  
 Bei `401`: `GATEWAY_TOKEN` prüfen.  
 Bei Image-Pull-Fehlern: GHCR-Workflow und Paket-Sichtbarkeit prüfen.  
-Bei MCP-Problemen: `GET /api/mcp/servers` zeigt Status und Fehlertext je Server.
+Bei MCP-Problemen: `GET /api/mcp/servers` zeigt Status und Fehlertext je Server.  
+Bei der Meldung "WEBUI_SECRET_KEY setzen" beim Deploy: Variable in Portainer ergänzen.
