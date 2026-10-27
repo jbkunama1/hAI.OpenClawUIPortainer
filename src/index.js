@@ -2,9 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 require('dotenv').config();
+const logBuffer = require('./logbuffer');
+
+logBuffer.install();
+
 const { McpManager } = require('./mcp');
 const { createAgent } = require('./agent');
-const { TelegramBot } = require('./telegram');
+const { OpenClawBot } = require('./telegram-ui');
 const { announceStart } = require('./startup');
 
 const app = express();
@@ -13,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 
 let mcpConfig = [];
 
@@ -56,10 +60,11 @@ async function resolveTelegramModel() {
   return model;
 }
 
-const telegram = new TelegramBot({
+const telegram = new OpenClawBot({
   token: process.env.TELEGRAM_BOT_TOKEN || '',
   allowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || '').split(',').map(s => s.trim()).filter(Boolean),
   agent,
+  mcp,
   resolveModel: resolveTelegramModel,
   getHealth: healthInfo,
   approvalTimeoutS: parseInt(process.env.TELEGRAM_APPROVAL_TIMEOUT_S || '120', 10) || 120,
